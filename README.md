@@ -25,7 +25,7 @@ More information on MR Utility Kit can be found on our [developer website](https
 - [Passthrough Relighting](./Assets/MRUKSamples/PassthroughRelighting): A scene showing the effect of virtual shadows and highlights on scene objects.
 - [Scene Decorator](./Assets/MRUKSamples/SceneDecorator): A scene with basic decorations and SceneDecorator to populate the environment.
 - [Destructible Mesh](./Assets/MRUKSamples/DestructibleMesh): A scene showing how to spawn a global mesh that can be segmented, usually used to create destructible environments.
-- [Environment Panel Placement (Beta)](./Assets/MRUKSamples/Experimental/EnvironmentPanelPlacement): A scene showing how to use EnvironmentRaycastManager to attach virtual panel to the physical environment.
+- [Environment Panel Placement](./Assets/MRUKSamples/EnvironmentPanelPlacement): A scene showing how to use EnvironmentRaycastManager to attach virtual panel to the physical environment.
 - [Space Map](./Assets/MRUKSamples/SpaceMap): A scene with the SpaceMap prefab added. It creates a texture which represents the room with a color gradient according to the settings of the prefab.
 - [Keyboard Tracking](./Assets/MRUKSamples/KeyboardTracker): A scene demonstrating generic keyboard detection and tracking.
 - [Bouncing Ball](./Assets/MRUKSamples/BouncingBall): A scene showing virtual balls interacting with the physical environment.
@@ -52,7 +52,7 @@ git clone https://github.com/oculus-samples/Unity-MRUtilityKitSample.git
 1. Navigate to **File** > **Build Settings**.
 2. Select the sample scene that you want to test on device.
 3. Build an apk.
-4. Navigate to build destination folder and copy the APK to your device using [Meta Quest Developer Hub](https://developer.oculus.com/documentation/unity/ts-odh-deploy-build/).
+4. Navigate to build destination folder and copy the APK to your device using [Meta Quest Developer Hub](https://developer.oculus.com/documentation/unity/ts-mqdh-deploy-build/).
 
 ## SDK Dependencies
 
@@ -84,4 +84,4 @@ This project depends on SDKs defined in the [Packages/manifest.json](./Packages/
 
 ## Licenses
 
-The Oculus License applies to the SDK and supporting material. The MIT License applies to only certain, clearly marked documents. If an individual file does not indicate which license it is subject to, then the Oculus License applies.
+The Unity-MRUtilityKitSample project is licensed under [MIT LICENSE](./LICENSE).

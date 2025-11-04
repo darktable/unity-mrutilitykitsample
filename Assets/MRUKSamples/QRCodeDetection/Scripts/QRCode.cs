@@ -1,22 +1,4 @@
-/*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- * All rights reserved.
- *
- * Licensed under the Oculus SDK License Agreement (the "License");
- * you may not use the Oculus SDK except in compliance with the License,
- * which is provided at the time of installation or download, or which
- * otherwise accompanies this software in either electronic or hard copy form.
- *
- * You may obtain a copy of the License at
- *
- * https://developer.oculus.com/licenses/oculussdk/
- *
- * Unless required by applicable law or agreed to in writing, the Oculus SDK
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 
 using Meta.XR.MRUtilityKit;
 using Meta.XR.Samples;
@@ -39,7 +21,12 @@ namespace Meta.XR.MRUtilityKitSamples.QRCodeDetection
         TMP_Text _text;
 
         [SerializeField]
+        TMP_Text _trackingStateText;
+
+        [SerializeField]
         RectTransform _background;
+
+        MRUKTrackable _trackable;
 
         public void Initialize(MRUKTrackable trackable)
         {
@@ -56,6 +43,9 @@ namespace Meta.XR.MRUtilityKitSamples.QRCodeDetection
                 _text.text = "(no payload)";
             }
 
+            _trackable = trackable;
+            SetTrackingStateText();
+
             if (!_background)
             {
                 return;
@@ -71,5 +61,11 @@ namespace Meta.XR.MRUtilityKitSamples.QRCodeDetection
             size.y += 16f;
             _background.sizeDelta = size;
         }
+
+        void Update() => SetTrackingStateText();
+
+        void SetTrackingStateText() => _trackingStateText.text = _trackable
+            ? _trackable.IsTracked ? "Tracked" : "Untracked"
+            : "(none)";
     }
 }

@@ -1,28 +1,12 @@
-/*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- * All rights reserved.
- *
- * Licensed under the Oculus SDK License Agreement (the "License");
- * you may not use the Oculus SDK except in compliance with the License,
- * which is provided at the time of installation or download, or which
- * otherwise accompanies this software in either electronic or hard copy form.
- *
- * You may obtain a copy of the License at
- *
- * https://developer.oculus.com/licenses/oculussdk/
- *
- * Unless required by applicable law or agreed to in writing, the Oculus SDK
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Meta.XR.Samples;
 using UnityEngine;
+using UnityEngine.Assertions;
 
 namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
 {
@@ -38,6 +22,8 @@ namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
         [SerializeField] private Transform _panel;
         [SerializeField] private float _panelAspectRatio = 0.823f;
         [SerializeField] private GameObject _panelGlow;
+        [SerializeField] private SpriteRenderer _panelSprite;
+        [SerializeField] private GameObject _trackingLostLabel;
         [SerializeField] private LineRenderer _raycastVisualizationLine;
         [SerializeField] private Transform _raycastVisualizationNormal;
 
@@ -50,6 +36,7 @@ namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
         private Pose? _environmentPose;
         private EnvironmentRaycastHitStatus _currentEnvHitStatus;
         private OVRSpatialAnchor _spatialAnchor;
+        private bool _isRestoringAnchorTracking;
 
         private IEnumerator Start()
         {
@@ -70,9 +57,8 @@ namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
 
             // Create the OVRSpatialAnchor and make it a parent of the panel.
             // This will prevent the panel front drifting after headset lock/unlock.
-            _spatialAnchor = new GameObject(nameof(OVRSpatialAnchor)).AddComponent<OVRSpatialAnchor>();
-            _spatialAnchor.transform.SetPositionAndRotation(_panel.position, _panel.rotation);
-            _panel.SetParent(_spatialAnchor.transform);
+            var parent = new GameObject(nameof(OVRSpatialAnchor));
+            CreateSpatialAnchorAndSave(parent.transform);
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -84,9 +70,40 @@ namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
             }
         }
 
+        private async void CreateSpatialAnchorAndSave(Transform target)
+        {
+            Assert.IsNull(target.GetComponent<OVRSpatialAnchor>());
+            _spatialAnchor = target.gameObject.AddComponent<OVRSpatialAnchor>();
+            target.SetPositionAndRotation(_panel.position, _panel.rotation);
+            _panel.SetParent(target);
+            _panel.SetLocalPositionAndRotation(default, Quaternion.identity);
+
+            // Wait for localization because SaveAnchorAsync() requires the anchor to be localized first.
+            while (true)
+            {
+                if (_spatialAnchor == null)
+                {
+                    // Spatial Anchor destroys itself when creation fails.
+                    return;
+                }
+                if (_spatialAnchor.Localized)
+                {
+                    break;
+                }
+                await Task.Yield();
+            }
+
+            // Save the anchor.
+            var saveAnchorResult = await _spatialAnchor.SaveAnchorAsync();
+            if (!saveAnchorResult.Success)
+            {
+                Debug.LogError($"SaveAnchorAsync() failed {saveAnchorResult}");
+            }
+        }
+
         private void Update()
         {
-            if (!Application.isFocused)
+            if (!Application.isFocused && !Application.isEditor)
             {
                 return;
             }
@@ -100,19 +117,25 @@ namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
                     _panelGlow.SetActive(false);
                     _isGrabbing = false;
                     _environmentPose = null;
-
-                    // If the existing OVRSpatialAnchor if further than 3 meters away from the current panel position, delete it and create a new one:
-                    // https://developers.meta.com/horizon/documentation/unity/unity-spatial-anchors-best-practices#tips-for-using-spatial-anchors
-                    if (_panel.localPosition.magnitude > 3f)
+                    if (!_isRestoringAnchorTracking)
                     {
-                        _spatialAnchor.EraseAnchorAsync();
-                        DestroyImmediate(_spatialAnchor);
-
-                        var parent = _panel.parent;
-                        _panel.SetParent(null);
-                        parent.SetPositionAndRotation(_panel.position, _panel.rotation);
-                        _spatialAnchor = parent.gameObject.AddComponent<OVRSpatialAnchor>();
-                        _panel.SetParent(parent);
+                        // If the existing OVRSpatialAnchor if further than 3 meters away from the current panel position, delete it and create a new one:
+                        // https://developers.meta.com/horizon/documentation/unity/unity-spatial-anchors-best-practices#tips-for-using-spatial-anchors
+                        if (_panel.localPosition.magnitude > 3f || _spatialAnchor == null || !_spatialAnchor.IsTracked)
+                        {
+                            if (_spatialAnchor != null)
+                            {
+                                _spatialAnchor.EraseAnchorAsync().ContinueWith(static result =>
+                                {
+                                    if (!result.Success)
+                                    {
+                                        Debug.LogError($"EraseAnchorAsync() failed {result}");
+                                    }
+                                });
+                                DestroyImmediate(_spatialAnchor);
+                            }
+                            CreateSpatialAnchorAndSave(_panel.parent);
+                        }
                     }
                 }
             }
@@ -135,6 +158,7 @@ namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
                 }
             }
             AnimatePanelPose();
+            UpdateSpatialAnchorTrackingState();
         }
 
         private Ray GetRaycastRay()
@@ -244,6 +268,7 @@ namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
                     _raycastVisualizationNormal.SetPositionAndRotation(hit.point, Quaternion.LookRotation(hit.normal));
                 }
             }
+
         }
 
         private bool RaycastPanelOrEnvironment(Ray ray, out EnvironmentRaycastHit envHit)
@@ -262,6 +287,48 @@ namespace Meta.XR.MRUtilityKitSamples.EnvironmentPanelPlacement
             bool envHitResult = _raycastManager.Raycast(ray, out envHit);
             _currentEnvHitStatus = envHit.status;
             return envHitResult;
+        }
+
+        private void UpdateSpatialAnchorTrackingState()
+        {
+            bool isTracked = _spatialAnchor != null && _spatialAnchor.IsTracked;
+            _panelSprite.color = isTracked ? Color.white : Color.red;
+            _trackingLostLabel.SetActive(!isTracked);
+            if (_spatialAnchor != null && _spatialAnchor.Localized && !isTracked)
+            {
+                RestoreSpatialAnchorTracking();
+            }
+        }
+
+        private async void RestoreSpatialAnchorTracking()
+        {
+            if (!_isRestoringAnchorTracking)
+            {
+                _isRestoringAnchorTracking = true;
+                await RestoreTracking();
+                _isRestoringAnchorTracking = false;
+            }
+            async ValueTask RestoreTracking()
+            {
+                Assert.IsNotNull(_spatialAnchor);
+                var unboundAnchors = new List<OVRSpatialAnchor.UnboundAnchor>(1);
+                var loadResult = await OVRSpatialAnchor.LoadUnboundAnchorsAsync(new[] { _spatialAnchor.Uuid }, unboundAnchors);
+                if (!loadResult.Success)
+                {
+                    Debug.LogError($"LoadUnboundAnchorsAsync() failed {loadResult.Status}.");
+                    return;
+                }
+                if (unboundAnchors.Count != 0)
+                {
+                    Debug.LogError($"LoadUnboundAnchorsAsync() unexpected count:{unboundAnchors.Count}.");
+                    return;
+                }
+                await Task.Yield();
+                if (_spatialAnchor.IsTracked)
+                {
+                    Debug.Log("Spatial Anchor tracking was restored successfully.");
+                }
+            }
         }
 
         private class RollingAverage
